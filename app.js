@@ -35,7 +35,8 @@
         seedMember("Maria", "#E5679A", 5.6, 40)
       ],
       entries: [],
-      customBankHolidays: {} // { "2026": [{id,name,date}] }
+      customBankHolidays: {}, // { "2026": [{id,name,date}] }
+      settings: { roundHalfHour: false }
     };
   }
 
@@ -75,6 +76,7 @@
       if (!state.customBankHolidays) state.customBankHolidays = {};
       if (!state.members) state.members = [];
       if (!state.entries) state.entries = [];
+      if (!state.settings) state.settings = { roundHalfHour: false };
       state.members.forEach(migrateMember);
     } catch (e) {
       state = defaultState();
@@ -257,7 +259,9 @@
   }
 
   function fmtH(n) {
-    var r = Math.round(n * 10) / 10;
+    var step = (state.settings && state.settings.roundHalfHour) ? 0.5 : 0.1;
+    var r = Math.round(n / step) * step;
+    r = Math.round(r * 100) / 100;
     return (r % 1 === 0 ? r.toFixed(0) : r.toFixed(1)) + "h";
   }
 
@@ -901,6 +905,21 @@
     }
   });
 
+  function syncRoundingSegment() {
+    var half = !!(state && state.settings && state.settings.roundHalfHour);
+    $all("#roundingSegmented .segment").forEach(function (s) {
+      s.classList.toggle("is-selected", (s.dataset.round === "half") === half);
+    });
+  }
+  $all("#roundingSegmented .segment").forEach(function (seg) {
+    seg.addEventListener("click", function () {
+      state.settings.roundHalfHour = seg.dataset.round === "half";
+      saveState();
+      syncRoundingSegment();
+      renderAll();
+    });
+  });
+
   function buildSummaryHtml(year) {
     var active = state.members.filter(function (m) { return !m.archived; });
     var rowsHtml = active.map(function (m) {
@@ -917,6 +936,38 @@
       buildMonthlyTableHtml(year);
   }
 
+  function buildSummaryData(year) {
+    var active = state.members.filter(function (m) { return !m.archived; });
+    var memberHeaders = ["Name", "Hrs/wk", "Weeks", "Allowance", "Taken", "Remaining"];
+    var memberRows = active.map(function (m) {
+      var s = getMemberYearStats(m, year);
+      return [m.name, String(latestContractHours(m)), String(m.allowanceWeeks), fmtH(s.allowanceHours), fmtH(s.takenHours), fmtH(s.remainingHours)];
+    });
+
+    var b = getMonthlyBreakdown(year);
+    var monthlyHeaders = ["Month"].concat(b.members.map(function (m) { return m.name; })).concat(["Total"]);
+    var monthlyRows = MONTH_NAMES.map(function (name, mi) {
+      var row = [name];
+      b.members.forEach(function (m) { row.push(b.data[m.id][mi] ? fmtH(b.data[m.id][mi]) : "–"); });
+      row.push(b.monthTotals[mi] ? fmtH(b.monthTotals[mi]) : "–");
+      return row;
+    });
+    var totalsRow = ["Total"];
+    b.members.forEach(function (m) {
+      var sum = b.data[m.id].reduce(function (a, x) { return a + x; }, 0);
+      totalsRow.push(fmtH(sum));
+    });
+    totalsRow.push(fmtH(b.grandTotal));
+
+    return {
+      memberHeaders: memberHeaders,
+      memberRows: memberRows,
+      monthlyHeaders: monthlyHeaders,
+      monthlyRows: monthlyRows,
+      monthlyTotalsRow: totalsRow
+    };
+  }
+
   var SUMMARY_STYLE = "body{font-family:Arial,sans-serif;padding:24px;color:#1B3A4B;background:#fff;} " +
     "table{width:100%;border-collapse:collapse;margin-top:14px;} th,td{border:1px solid #ddd;padding:7px 9px;text-align:left;font-size:12.5px;} th{background:#FFF3E4;}";
 
@@ -930,59 +981,180 @@
     setTimeout(function () { win.print(); }, 300);
   });
 
-  $("#exportPdfBtn").addEventListener("click", function () {
-    if (!window.jspdf) { toast("PDF library didn't load — check your connection and try again"); return; }
-    var container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-9999px;top:0;width:760px;background:#fff;";
-    container.innerHTML = "<div style='" + SUMMARY_STYLE.replace(/body\{[^}]*\}/, "") + "'>" + buildSummaryHtml(ui.currentYear) + "</div>";
-    document.body.appendChild(container);
-    html2canvas(container, { scale: 2, backgroundColor: "#ffffff" }).then(function (canvas) {
-      document.body.removeChild(container);
-      var imgData = canvas.toDataURL("image/png");
-      var pdf = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      var pageWidth = pdf.internal.pageSize.getWidth();
-      var imgWidth = pageWidth - 40;
-      var imgHeight = (canvas.height / canvas.width) * imgWidth;
-      var y = 20;
-      var remainingHeight = imgHeight;
-      var pageUsableHeight = pdf.internal.pageSize.getHeight() - 40;
-      if (imgHeight <= pageUsableHeight) {
-        pdf.addImage(imgData, "PNG", 20, y, imgWidth, imgHeight);
-      } else {
-        // Split across multiple pages
-        var sourceY = 0;
-        var scale = canvas.width / imgWidth;
-        while (remainingHeight > 0) {
-          var sliceHeightPx = Math.min(pageUsableHeight, remainingHeight) * scale;
-          var pageCanvas = document.createElement("canvas");
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = sliceHeightPx;
-          var ctx = pageCanvas.getContext("2d");
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-          var sliceImg = pageCanvas.toDataURL("image/png");
-          var sliceHeightPt = sliceHeightPx / scale;
-          if (sourceY > 0) pdf.addPage();
-          pdf.addImage(sliceImg, "PNG", 20, 20, imgWidth, sliceHeightPt);
-          sourceY += sliceHeightPx;
-          remainingHeight -= sliceHeightPt;
-        }
+  // Draws a simple bordered table with jsPDF's own text/line primitives (no screenshot involved).
+  // Returns the y position just below the table.
+  function drawPdfTable(pdf, x, y, colWidths, headers, rows, opts) {
+    opts = opts || {};
+    var rowH = opts.rowHeight || 16;
+    var fontSize = opts.fontSize || 8.5;
+    var pageBottom = pdf.internal.pageSize.getHeight() - 30;
+    var totalWidth = colWidths.reduce(function (a, w) { return a + w; }, 0);
+
+    function drawRow(cells, isHeader) {
+      if (y + rowH > pageBottom) { pdf.addPage(); y = 30; }
+      if (isHeader) {
+        pdf.setFillColor(255, 243, 228);
+        pdf.rect(x, y, totalWidth, rowH, "F");
       }
+      pdf.setDrawColor(220, 220, 220);
+      pdf.rect(x, y, totalWidth, rowH);
+      var cx = x;
+      pdf.setFont(undefined, isHeader ? "bold" : "normal");
+      pdf.setFontSize(fontSize);
+      pdf.setTextColor(27, 58, 75);
+      cells.forEach(function (text, i) {
+        pdf.line(cx, y, cx, y + rowH);
+        pdf.text(String(text), cx + 5, y + rowH - 5.5, { maxWidth: colWidths[i] - 8 });
+        cx += colWidths[i];
+      });
+      pdf.line(cx, y, cx, y + rowH);
+      y += rowH;
+    }
+
+    drawRow(headers, true);
+    rows.forEach(function (r) { drawRow(r, false); });
+    return y;
+  }
+
+  function generatePdf(year) {
+    var data = buildSummaryData(year);
+    var pdf = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    var marginX = 30;
+    var y = 40;
+
+    pdf.setFont(undefined, "bold");
+    pdf.setFontSize(16);
+    pdf.setTextColor(27, 58, 75);
+    pdf.text("Uxbridge Vets4Pets", marginX, y);
+    y += 18;
+    pdf.setFont(undefined, "normal");
+    pdf.setFontSize(11);
+    pdf.text("Holiday summary — " + year, marginX, y);
+    y += 20;
+
+    var usableWidth = pdf.internal.pageSize.getWidth() - marginX * 2;
+    var memberColWidths = [usableWidth * 0.28, usableWidth * 0.13, usableWidth * 0.13, usableWidth * 0.16, usableWidth * 0.15, usableWidth * 0.15];
+    y = drawPdfTable(pdf, marginX, y, memberColWidths, data.memberHeaders, data.memberRows);
+
+    y += 26;
+    pdf.setFont(undefined, "bold");
+    pdf.setFontSize(13);
+    pdf.text("Hours taken by month", marginX, y);
+    y += 14;
+
+    var numCols = data.monthlyHeaders.length;
+    var monthColWidth = usableWidth / numCols;
+    var monthColWidths = data.monthlyHeaders.map(function () { return monthColWidth; });
+    y = drawPdfTable(pdf, marginX, y, monthColWidths, data.monthlyHeaders, data.monthlyRows.concat([data.monthlyTotalsRow]), { fontSize: 8 });
+
+    return pdf;
+  }
+
+  $("#exportPdfBtn").addEventListener("click", function () {
+    if (!window.jspdf || !window.jspdf.jsPDF) { toast("PDF library didn't load — check your connection and try again"); return; }
+    try {
+      var pdf = generatePdf(ui.currentYear);
       pdf.save("uv4p-holidays-" + ui.currentYear + ".pdf");
       toast("PDF downloaded");
-    }).catch(function () {
-      document.body.removeChild(container);
+    } catch (err) {
       toast("Couldn't generate the PDF — try Print instead");
-    });
+    }
   });
 
+  // Draws the same two tables directly onto a canvas 2D context (no screenshot library needed).
+  function drawCanvasTable(ctx, x, y, colWidths, headers, rows, opts) {
+    opts = opts || {};
+    var rowH = opts.rowHeight || 26;
+    var fontSize = opts.fontSize || 12;
+    var totalWidth = colWidths.reduce(function (a, w) { return a + w; }, 0);
+
+    function drawRow(cells, isHeader) {
+      if (isHeader) {
+        ctx.fillStyle = "#FFF3E4";
+        ctx.fillRect(x, y, totalWidth, rowH);
+      }
+      ctx.strokeStyle = "#ddd";
+      ctx.strokeRect(x, y, totalWidth, rowH);
+      ctx.fillStyle = "#1B3A4B";
+      ctx.font = (isHeader ? "bold " : "") + fontSize + "px Arial, sans-serif";
+      ctx.textBaseline = "middle";
+      var cx = x;
+      cells.forEach(function (text, i) {
+        ctx.beginPath();
+        ctx.moveTo(cx, y);
+        ctx.lineTo(cx, y + rowH);
+        ctx.stroke();
+        ctx.fillText(String(text), cx + 8, y + rowH / 2, colWidths[i] - 14);
+        cx += colWidths[i];
+      });
+      ctx.beginPath();
+      ctx.moveTo(cx, y);
+      ctx.lineTo(cx, y + rowH);
+      ctx.stroke();
+      y += rowH;
+    }
+
+    drawRow(headers, true);
+    rows.forEach(function (r) { drawRow(r, false); });
+    return y;
+  }
+
+  function generateSummaryCanvas(year) {
+    var data = buildSummaryData(year);
+    var width = 900;
+    var marginX = 30;
+    var usableWidth = width - marginX * 2;
+
+    var memberRowH = 30;
+    var monthRowH = 26;
+    var headerBlockH = 90;
+    var sectionGapH = 60;
+    var monthHeaderH = 30;
+
+    var height = headerBlockH
+      + memberRowH * (data.memberRows.length + 1)
+      + sectionGapH
+      + monthHeaderH
+      + monthRowH * (data.monthlyRows.length + 2)
+      + 30; // safety margin
+
+    var canvas = document.createElement("canvas");
+    var scale = 2;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    var y = 36;
+    ctx.fillStyle = "#1B3A4B";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = "bold 24px Arial, sans-serif";
+    ctx.fillText("Uxbridge Vets4Pets", marginX, y);
+    y += 26;
+    ctx.font = "15px Arial, sans-serif";
+    ctx.fillText("Holiday summary — " + year, marginX, y);
+    y += 28;
+
+    var memberColWidths = [usableWidth * 0.28, usableWidth * 0.13, usableWidth * 0.13, usableWidth * 0.16, usableWidth * 0.15, usableWidth * 0.15];
+    y = drawCanvasTable(ctx, marginX, y, memberColWidths, data.memberHeaders, data.memberRows, { rowHeight: memberRowH });
+
+    y += sectionGapH - 20;
+    ctx.font = "bold 18px Arial, sans-serif";
+    ctx.fillText("Hours taken by month", marginX, y);
+    y += 16;
+
+    var numCols = data.monthlyHeaders.length;
+    var monthColWidths = data.monthlyHeaders.map(function () { return usableWidth / numCols; });
+    drawCanvasTable(ctx, marginX, y, monthColWidths, data.monthlyHeaders, data.monthlyRows.concat([data.monthlyTotalsRow]), { rowHeight: monthRowH, fontSize: 11 });
+
+    return canvas;
+  }
+
   $("#exportImageBtn").addEventListener("click", function () {
-    if (!window.html2canvas) { toast("Image library didn't load — check your connection and try again"); return; }
-    var container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-9999px;top:0;width:760px;background:#fff;";
-    container.innerHTML = "<div style='" + SUMMARY_STYLE.replace(/body\{[^}]*\}/, "") + "'>" + buildSummaryHtml(ui.currentYear) + "</div>";
-    document.body.appendChild(container);
-    html2canvas(container, { scale: 2, backgroundColor: "#ffffff" }).then(function (canvas) {
-      document.body.removeChild(container);
+    try {
+      var canvas = generateSummaryCanvas(ui.currentYear);
       var link = document.createElement("a");
       link.download = "uv4p-holidays-" + ui.currentYear + ".png";
       link.href = canvas.toDataURL("image/png");
@@ -990,10 +1162,9 @@
       link.click();
       document.body.removeChild(link);
       toast("Image downloaded");
-    }).catch(function () {
-      document.body.removeChild(container);
+    } catch (err) {
       toast("Couldn't generate the image — try Print instead");
-    });
+    }
   });
 
   /* ---------------------------------------------------------
@@ -1019,6 +1190,7 @@
   function init() {
     loadState();
     $("#yearLabel").textContent = ui.currentYear;
+    syncRoundingSegment();
     showView("dashboard");
 
     if ("serviceWorker" in navigator) {

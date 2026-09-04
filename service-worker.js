@@ -1,4 +1,4 @@
-var CACHE_NAME = "uv4p-holidays-v3";
+var CACHE_NAME = "uv4p-holidays-v4";
 var CORE_ASSETS = [
   "./",
   "./index.html",
@@ -6,7 +6,6 @@ var CORE_ASSETS = [
   "./app.js",
   "./manifest.json",
   "./vendor/jspdf.umd.min.js",
-  "./vendor/html2canvas.min.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
