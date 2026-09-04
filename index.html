@@ -183,28 +183,36 @@
       </label>
 
       <label>Colour
-        <div id="colorPicker" class="color-picker"></div>
+        <div id="colorPicker" class="color-picker">
+          <input type="color" id="customColorInput" class="custom-color-input" title="Custom colour" value="#FF6B5B">
+        </div>
       </label>
 
       <label>Contracted hours per week
-        <input type="number" id="memberHours" min="1" max="60" step="0.5" required placeholder="e.g. 37.5">
+        <div id="contractHistoryList" class="contract-history-list"></div>
+        <div class="inline-form">
+          <input type="date" id="newContractDate">
+          <input type="number" id="newContractHours" step="0.5" min="1" max="60" placeholder="Hours/week">
+          <button type="button" class="btn btn-secondary btn-sm" id="addContractRowBtn">+ Add</button>
+        </div>
+        <p class="hint">Add a row for each date their contracted hours changed — the app works out the correct pro-rata automatically.</p>
       </label>
 
       <label>Holiday allowance (weeks per year)
+        <p class="hint" style="margin:0 0 4px;">Common presets, or type any custom amount below</p>
         <div class="chip-row">
           <button type="button" class="chip" data-weeks="5.6">5.6</button>
           <button type="button" class="chip" data-weeks="6.6">6.6</button>
         </div>
-        <input type="number" id="memberWeeks" min="0" max="20" step="0.1" required placeholder="e.g. 5.6">
+        <input type="number" id="memberWeeks" min="0" max="20" step="0.1" required placeholder="Custom, e.g. 5.6">
       </label>
 
-      <label class="toggle-row">
-        <span>Bank holidays count towards this allowance</span>
-        <input type="checkbox" id="memberIncludeBH">
-      </label>
-
-      <label>Start date <span class="hint">(optional — pro-rates their first year)</span>
-        <input type="date" id="memberJoinDate">
+      <label>Bank holidays
+        <div class="segmented" id="bhSegmented">
+          <button type="button" class="segment" data-bh="ontop">On top of allowance</button>
+          <button type="button" class="segment" data-bh="included">Included in allowance</button>
+        </div>
+        <p class="hint" style="margin:6px 0 0;">"Included" deducts a standard day's hours from their allowance for each bank holiday. "On top" leaves their allowance untouched.</p>
       </label>
 
       <label>Leave date <span class="hint">(optional)</span>
@@ -215,9 +223,12 @@
         <input type="number" id="memberCarryOver" step="0.5" placeholder="0">
       </label>
 
-      <div class="modal-actions">
-        <button type="button" class="btn btn-text" id="archiveMemberBtn">Archive</button>
-        <button type="submit" class="btn btn-primary">Save</button>
+      <div class="modal-actions modal-actions-split">
+        <button type="button" class="btn btn-text btn-danger-text" id="deleteMemberBtn">Delete</button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-text" id="archiveMemberBtn">Archive</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
       </div>
     </form>
   </div>

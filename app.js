@@ -28,11 +28,11 @@
     return {
       meta: { practiceName: "Uxbridge Vets4Pets", createdAt: new Date().toISOString() },
       members: [
-        seedMember("Oscar", "#FF6B5B"),
-        seedMember("Claire", "#1F9D8A"),
-        seedMember("Saba", "#FFC93C"),
-        seedMember("Kajol", "#6C7BD1"),
-        seedMember("Maria", "#E5679A")
+        seedMember("Oscar", "#FF6B5B", 6.6, 39),
+        seedMember("Claire", "#1F9D8A", 6.6, 40),
+        seedMember("Saba", "#FFC93C", 5.6, 40),
+        seedMember("Kajol", "#6C7BD1", 5.6, 40),
+        seedMember("Maria", "#E5679A", 5.6, 40)
       ],
       entries: [],
       customBankHolidays: {}, // { "2026": [{id,name,date}] }
@@ -40,20 +40,32 @@
     };
   }
 
-  function seedMember(name, color) {
+  function seedMember(name, color, allowanceWeeks, hours) {
     return {
       id: uid(),
       name: name,
       color: color,
-      contractedHours: 40,
-      allowanceWeeks: 5.6,
+      allowanceWeeks: allowanceWeeks || 5.6,
       includeBankHolidays: true,
-      joinDate: "",
+      contractHistory: [{ id: uid(), date: (new Date().getFullYear()) + "-01-01", hours: hours || 40 }],
       leaveDate: "",
       archived: false,
       carryOver: {},
       bhExceptions: {}
     };
+  }
+
+  function migrateMember(m) {
+    if (!m.contractHistory) {
+      var hours = typeof m.contractedHours === "number" ? m.contractedHours : 40;
+      var date = m.joinDate || ((new Date().getFullYear()) + "-01-01");
+      m.contractHistory = [{ id: uid(), date: date, hours: hours }];
+    }
+    if (!m.carryOver) m.carryOver = {};
+    if (!m.bhExceptions) m.bhExceptions = {};
+    if (typeof m.includeBankHolidays !== "boolean") m.includeBankHolidays = true;
+    if (typeof m.archived !== "boolean") m.archived = false;
+    return m;
   }
 
   function loadState() {
@@ -68,6 +80,7 @@
       if (!state.customBankHolidays) state.customBankHolidays = {};
       if (!state.members) state.members = [];
       if (!state.entries) state.entries = [];
+      state.members.forEach(migrateMember);
     } catch (e) {
       state = defaultState();
       saveState();
@@ -93,6 +106,10 @@
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
   function isWeekend(d) { var day = d.getDay(); return day === 0 || day === 6; }
+
+  function diffDaysInclusive(start, end) {
+    return Math.round((end - start) / DAY_MS) + 1;
+  }
 
   // Adds n calendar days using field arithmetic (safe across DST changes).
   function addDays(d, n) {
@@ -185,28 +202,44 @@
   /* ---------------------------------------------------------
      HOLIDAY MATH
   --------------------------------------------------------- */
-  function membershipFraction(member, year) {
-    var yearStart = new Date(year, 0, 1);
-    var yearEnd = new Date(year, 11, 31);
-    var start = member.joinDate ? parseISO(member.joinDate) : yearStart;
-    var end = member.leaveDate ? parseISO(member.leaveDate) : yearEnd;
-    if (start < yearStart) start = yearStart;
-    if (end > yearEnd) end = yearEnd;
-    if (end < yearStart || start > yearEnd) return 0;
-    var days = Math.round((end - start) / DAY_MS) + 1;
-    var totalDays = Math.round((yearEnd - yearStart) / DAY_MS) + 1;
-    var frac = days / totalDays;
-    if (frac < 0) frac = 0;
-    if (frac > 1) frac = 1;
-    return frac;
+  function sortedHistory(member) {
+    return (member.contractHistory || []).slice().sort(function (a, b) { return parseISO(a.date) - parseISO(b.date); });
+  }
+
+  // Contracted hours/week in effect on a given date, or 0 if not yet employed / already left.
+  function hoursOnDate(member, d) {
+    if (member.leaveDate && d > parseISO(member.leaveDate)) return 0;
+    var hist = sortedHistory(member);
+    var applicable = null;
+    hist.forEach(function (h) {
+      var hd = parseISO(h.date);
+      if (hd <= d) applicable = h;
+    });
+    return applicable ? applicable.hours : 0;
+  }
+
+  // Most recent contracted hours figure, for display purposes (Team list, CSV, print).
+  function latestContractHours(member) {
+    var hist = sortedHistory(member);
+    return hist.length ? hist[hist.length - 1].hours : 0;
   }
 
   function getMemberYearStats(member, year) {
-    var frac = membershipFraction(member, year);
-    var dailyHours = member.contractedHours / 5;
-    var allowanceWeeksProrated = member.allowanceWeeks * frac;
+    var yearStart = new Date(year, 0, 1);
+    var yearEnd = new Date(year, 11, 31);
+    var totalDaysInYear = Math.round((yearEnd - yearStart) / DAY_MS) + 1;
+
+    // Sum contracted hours across every day of the year the member was employed,
+    // so mid-year contract-hours changes (and joining/leaving) are accounted for exactly.
+    var sumHours = 0;
+    var cur = yearStart;
+    for (var i = 0; i < totalDaysInYear; i++) {
+      sumHours += hoursOnDate(member, cur);
+      cur = addDays(cur, 1);
+    }
+
     var carryOver = (member.carryOver && member.carryOver[year]) || 0;
-    var allowanceHours = allowanceWeeksProrated * member.contractedHours + carryOver;
+    var allowanceHours = (member.allowanceWeeks / 365) * sumHours + carryOver;
 
     var bankHolidayHours = 0;
     var bhList = [];
@@ -216,10 +249,9 @@
       all.forEach(function (bh) {
         var key = dateStr(bh.date);
         var excluded = exceptions.indexOf(key) !== -1;
-        var withinMembership = bh.date >= (member.joinDate ? parseISO(member.joinDate) : new Date(year, 0, 1)) &&
-          bh.date <= (member.leaveDate ? parseISO(member.leaveDate) : new Date(year, 11, 31));
-        var counted = !excluded && withinMembership;
-        if (counted) bankHolidayHours += dailyHours;
+        var dayHours = hoursOnDate(member, bh.date);
+        var counted = !excluded && dayHours > 0;
+        if (counted) bankHolidayHours += dayHours / 5;
         bhList.push({ name: bh.name, date: bh.date, counted: counted, key: key });
       });
     }
@@ -235,9 +267,6 @@
     var remainingHours = allowanceHours - bankHolidayHours - takenHours;
 
     return {
-      frac: frac,
-      dailyHours: dailyHours,
-      allowanceWeeksProrated: allowanceWeeksProrated,
       allowanceHours: allowanceHours,
       bankHolidayHours: bankHolidayHours,
       takenHours: takenHours,
@@ -349,7 +378,7 @@
         '<span class="swatch"></span>' +
         '<div class="info">' +
         '<div class="name">' + escapeHtml(m.name) + (m.archived ? ' <span class="archived-tag">Archived</span>' : "") + "</div>" +
-        '<div class="meta">' + m.contractedHours + "h/week · " + m.allowanceWeeks + " weeks · " + fmtH(stats.remainingHours) + " left in " + ui.currentYear + "</div>" +
+        '<div class="meta">' + latestContractHours(m) + "h/week · " + m.allowanceWeeks + " weeks · " + fmtH(stats.remainingHours) + " left in " + ui.currentYear + "</div>" +
         "</div>";
       row.addEventListener("click", function () { openMemberModal(m.id); });
       wrap.appendChild(row);
@@ -455,20 +484,97 @@
   /* ---------------------------------------------------------
      MEMBER MODAL
   --------------------------------------------------------- */
+  var pendingContractHistory = [];
+  var pendingColor = PALETTE[0];
+  var pendingBhIncluded = true;
+
   function renderColorPicker(selected) {
     var wrap = $("#colorPicker");
-    wrap.innerHTML = "";
+    Array.prototype.slice.call(wrap.querySelectorAll(".color-dot")).forEach(function (d) { d.remove(); });
+    var isPreset = PALETTE.indexOf(selected) !== -1;
     PALETTE.forEach(function (c) {
       var dot = el("div", "color-dot" + (c === selected ? " is-selected" : ""));
       dot.style.background = c;
       dot.dataset.color = c;
       dot.addEventListener("click", function () {
-        $all(".color-dot").forEach(function (d) { d.classList.remove("is-selected"); });
-        dot.classList.add("is-selected");
+        pendingColor = c;
+        $("#customColorInput").classList.remove("is-selected");
+        renderColorPicker(c);
       });
-      wrap.appendChild(dot);
+      wrap.insertBefore(dot, $("#customColorInput"));
+    });
+    var customInput = $("#customColorInput");
+    customInput.value = selected;
+    customInput.classList.toggle("is-selected", !isPreset);
+  }
+
+  $("#customColorInput").addEventListener("input", function () {
+    pendingColor = this.value;
+    $all(".color-dot").forEach(function (d) { d.classList.remove("is-selected"); });
+    this.classList.add("is-selected");
+  });
+
+  function renderContractHistoryList() {
+    var wrap = $("#contractHistoryList");
+    wrap.innerHTML = "";
+    var sorted = pendingContractHistory.slice().sort(function (a, b) { return parseISO(a.date) - parseISO(b.date); });
+    if (!sorted.length) {
+      wrap.innerHTML = '<p class="hint" style="margin:0;">No hours added yet — add one below.</p>';
+      return;
+    }
+
+    var year = ui.currentYear;
+    var yearStart = new Date(year, 0, 1), yearEnd = new Date(year, 11, 31);
+    var leaveVal = $("#memberLeaveDate").value;
+    var yearCap = leaveVal ? (parseISO(leaveVal) < yearEnd ? parseISO(leaveVal) : yearEnd) : yearEnd;
+    var weeksVal = parseFloat($("#memberWeeks").value);
+    if (isNaN(weeksVal)) weeksVal = 0;
+
+    sorted.forEach(function (h, idx) {
+      var segStart = parseISO(h.date);
+      if (segStart < yearStart) segStart = yearStart;
+      var nextEntry = sorted[idx + 1];
+      var segEnd = nextEntry ? addDays(parseISO(nextEntry.date), -1) : yearCap;
+      if (segEnd > yearCap) segEnd = yearCap;
+
+      var days = segEnd >= segStart ? diffDaysInclusive(segStart, segEnd) : 0;
+      var contribHours = (weeksVal / 365) * days * h.hours;
+
+      var row = el("div", "contract-history-row");
+      var breakdown = days > 0
+        ? days + " day" + (days === 1 ? "" : "s") + " in " + year + " → " + (Math.round(contribHours * 10) / 10) + "h"
+        : "not in " + year;
+      row.innerHTML = "<span>From " + fmtHuman(h.date) + " — " + h.hours + "h/week <span class=\"hint\">(" + breakdown + ")</span></span>";
+      var delBtn = el("button", "del-btn", "×");
+      delBtn.type = "button";
+      delBtn.addEventListener("click", function () {
+        pendingContractHistory = pendingContractHistory.filter(function (x) { return x.id !== h.id; });
+        renderContractHistoryList();
+      });
+      row.appendChild(delBtn);
+      wrap.appendChild(row);
     });
   }
+
+  $("#addContractRowBtn").addEventListener("click", function () {
+    var date = $("#newContractDate").value;
+    var hours = parseFloat($("#newContractHours").value);
+    if (!date || isNaN(hours)) { toast("Add a date and hours first"); return; }
+    pendingContractHistory.push({ id: uid(), date: date, hours: hours });
+    $("#newContractDate").value = "";
+    $("#newContractHours").value = "";
+    renderContractHistoryList();
+  });
+
+  function setBhSegment(included) {
+    pendingBhIncluded = included;
+    $all(".segment").forEach(function (s) {
+      s.classList.toggle("is-selected", (s.dataset.bh === "included") === included);
+    });
+  }
+  $all(".segment").forEach(function (seg) {
+    seg.addEventListener("click", function () { setBhSegment(seg.dataset.bh === "included"); });
+  });
 
   function openMemberModal(memberId) {
     ui.editingMemberId = memberId || null;
@@ -477,17 +583,23 @@
     $("#memberModalTitle").textContent = m ? "Edit " + m.name : "Add team member";
     $("#memberId").value = m ? m.id : "";
     $("#memberName").value = m ? m.name : "";
-    $("#memberHours").value = m ? m.contractedHours : "";
     $("#memberWeeks").value = m ? m.allowanceWeeks : "";
-    $("#memberIncludeBH").checked = m ? m.includeBankHolidays : true;
-    $("#memberJoinDate").value = m ? m.joinDate || "" : "";
     $("#memberLeaveDate").value = m ? m.leaveDate || "" : "";
     $("#memberCarryOver").value = m && m.carryOver && m.carryOver[ui.currentYear] ? m.carryOver[ui.currentYear] : "";
     $("#carryYearLabel").textContent = ui.currentYear;
+    $("#newContractDate").value = "";
+    $("#newContractHours").value = "";
+
     $("#archiveMemberBtn").classList.toggle("hidden", !m);
     $("#archiveMemberBtn").textContent = m && m.archived ? "Unarchive" : "Archive";
+    $("#deleteMemberBtn").classList.toggle("hidden", !m);
 
-    renderColorPicker(m ? m.color : PALETTE[state.members.length % PALETTE.length]);
+    pendingContractHistory = m ? JSON.parse(JSON.stringify(m.contractHistory || [])) : [];
+    renderContractHistoryList();
+
+    setBhSegment(m ? m.includeBankHolidays : true);
+    pendingColor = m ? m.color : PALETTE[state.members.filter(function (x) { return !x.archived; }).length % PALETTE.length];
+    renderColorPicker(pendingColor);
     syncWeeksChips();
     $("#memberModal").classList.remove("hidden");
   }
@@ -505,9 +617,11 @@
     chip.addEventListener("click", function () {
       $("#memberWeeks").value = chip.dataset.weeks;
       syncWeeksChips();
+      renderContractHistoryList();
     });
   });
-  $("#memberWeeks").addEventListener("input", syncWeeksChips);
+  $("#memberWeeks").addEventListener("input", function () { syncWeeksChips(); renderContractHistoryList(); });
+  $("#memberLeaveDate").addEventListener("input", renderContractHistoryList);
 
   $("#addMemberBtn").addEventListener("click", function () { openMemberModal(null); });
   $("#dashAddMemberBtn").addEventListener("click", function () { openMemberModal(null); });
@@ -515,16 +629,16 @@
   $("#memberForm").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var id = $("#memberId").value;
-    var color = ($(".color-dot.is-selected") || {}).dataset ? $(".color-dot.is-selected").dataset.color : PALETTE[0];
     var carryVal = parseFloat($("#memberCarryOver").value);
+
+    if (!pendingContractHistory.length) { toast("Add at least one contracted-hours entry"); return; }
 
     var data = {
       name: $("#memberName").value.trim(),
-      color: color,
-      contractedHours: parseFloat($("#memberHours").value),
+      color: pendingColor,
+      contractHistory: JSON.parse(JSON.stringify(pendingContractHistory)),
       allowanceWeeks: parseFloat($("#memberWeeks").value),
-      includeBankHolidays: $("#memberIncludeBH").checked,
-      joinDate: $("#memberJoinDate").value || "",
+      includeBankHolidays: pendingBhIncluded,
       leaveDate: $("#memberLeaveDate").value || ""
     };
 
@@ -558,6 +672,19 @@
     toast(m.archived ? "Archived " + m.name : "Restored " + m.name);
   });
 
+  $("#deleteMemberBtn").addEventListener("click", function () {
+    var id = $("#memberId").value;
+    var m = state.members.find(function (x) { return x.id === id; });
+    if (!m) return;
+    if (!confirm("Permanently delete " + m.name + " and all their logged time off? This can't be undone.")) return;
+    state.members = state.members.filter(function (x) { return x.id !== id; });
+    state.entries = state.entries.filter(function (e) { return e.memberId !== id; });
+    saveState();
+    closeModal($("#memberModal"));
+    renderAll();
+    toast("Deleted " + m.name);
+  });
+
   /* ---------------------------------------------------------
      ENTRY MODAL
   --------------------------------------------------------- */
@@ -579,7 +706,8 @@
     if (!m || !start || !end) return;
     if (parseISO(end) < parseISO(start)) return;
     var days = countWeekdays(start, end);
-    var hours = days * (m.contractedHours / 5);
+    var rate = hoursOnDate(m, parseISO(start)) || latestContractHours(m);
+    var hours = days * (rate / 5);
     $("#entryHours").value = Math.round(hours * 10) / 10;
   }
 
@@ -710,7 +838,7 @@
     var rows = [["Name", "Contracted hrs/wk", "Allowance (weeks)", "Allowance (hrs)", "Bank holiday hrs", "Taken hrs", "Remaining hrs", "Year"]];
     state.members.filter(function (m) { return !m.archived; }).forEach(function (m) {
       var s = getMemberYearStats(m, ui.currentYear);
-      rows.push([m.name, m.contractedHours, m.allowanceWeeks, s.allowanceHours.toFixed(1), s.bankHolidayHours.toFixed(1), s.takenHours.toFixed(1), s.remainingHours.toFixed(1), ui.currentYear]);
+      rows.push([m.name, latestContractHours(m), m.allowanceWeeks, s.allowanceHours.toFixed(1), s.bankHolidayHours.toFixed(1), s.takenHours.toFixed(1), s.remainingHours.toFixed(1), ui.currentYear]);
     });
     var csv = rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(","); }).join("\n");
     downloadFile("uv4p-holidays-" + ui.currentYear + ".csv", csv, "text/csv");
@@ -756,7 +884,7 @@
     var active = state.members.filter(function (m) { return !m.archived; });
     var rowsHtml = active.map(function (m) {
       var s = getMemberYearStats(m, ui.currentYear);
-      return "<tr><td>" + escapeHtml(m.name) + "</td><td>" + m.contractedHours + "</td><td>" + m.allowanceWeeks +
+      return "<tr><td>" + escapeHtml(m.name) + "</td><td>" + latestContractHours(m) + "</td><td>" + m.allowanceWeeks +
         "</td><td>" + fmtH(s.allowanceHours) + "</td><td>" + fmtH(s.bankHolidayHours) + "</td><td>" + fmtH(s.takenHours) +
         "</td><td>" + fmtH(s.remainingHours) + "</td></tr>";
     }).join("");

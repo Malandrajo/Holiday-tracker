@@ -39,15 +39,18 @@ There's no shared server, so:
 
 ## How the numbers are worked out
 
-- Each person's allowance is entered in **weeks** (e.g. 5.6 or 6.6) and converted to hours using *their own* contracted hours per week — so part-time hours are automatically pro-rated correctly.
-- **Bank holidays**: if switched on for someone, the app works out that year's 8 England & Wales bank holidays automatically (New Year's Day, Good Friday, Easter Monday, both May bank holidays, Summer bank holiday, Christmas Day and Boxing Day, including the weekend substitution rule) and deducts a standard day's hours for each one. This is calculated correctly for any past or future year — no need to update it annually.
+- Each person's allowance is entered in **weeks** — 5.6 and 6.6 are quick presets, but the field itself accepts any custom number.
+- Contracted hours are tracked as a **history**, not a single fixed number: add a row every time someone's hours change, with the date the new hours started. The app works out exactly how many hours they've earned by adding up each day of the year at whatever rate was in effect that day — so a mid-year contract change, a new starter, or someone leaving partway through the year are all handled automatically and precisely (this matches head office's own day-by-day pro-rata method).
+- **Bank holidays**: choose per person whether bank holidays are **on top of** their allowance (doesn't touch it) or **included in** it (deducts a standard day's hours, based on whatever their contracted hours were on that specific bank holiday date). The 8 England & Wales bank holidays are calculated automatically for any year — New Year's Day, Good Friday, Easter Monday, both May bank holidays, Summer bank holiday, Christmas Day and Boxing Day, including the weekend substitution rule — so it stays correct with no annual maintenance.
 - One-off extra bank holidays (like a Coronation or Jubilee day) aren't predictable by formula, so add those manually in the **Bank Holidays** tab for the relevant year.
-- If someone joins or leaves partway through the year, add their start/leave date on their profile and their allowance is pro-rated automatically.
+- If someone leaves partway through the year, add their leave date on their profile.
 - You can add a manual **carry-over** figure per person per year if they're bringing unused hours forward.
+- Each person gets a colour — pick one of the presets or tap the custom swatch for any colour you like.
+- **Delete** permanently removes a person and their history; **Archive** just hides them from the dashboard while keeping their record.
 
 ## Starting data
 
-The team (Oscar, Claire, Saba, Kajol, Maria) is pre-loaded with placeholder hours (40h/week, 5.6 weeks) so you can see the app working straight away — open **Team** and edit each person's real contracted hours and allowance before sharing it out.
+The team (Oscar, Claire, Saba, Kajol, Maria) is pre-loaded with their correct allowance (weeks) and current contracted hours as a starting point, each dated 1 January — open **Team** and add a contract-hours row for anyone whose hours changed partway through the year (head office's figures) so the numbers match exactly.
 
 ## Notes
 

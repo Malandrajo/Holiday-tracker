@@ -360,12 +360,52 @@ form input, form select {
 }
 .chip.is-selected { background: var(--teal); color: var(--white); border-color: var(--teal); }
 
-.color-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.color-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
 .color-dot {
   width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
   border: 3px solid transparent;
 }
 .color-dot.is-selected { border-color: var(--navy); }
+.custom-color-input {
+  width: 30px !important; height: 30px !important;
+  padding: 0 !important; margin: 0 !important;
+  border: 3px solid transparent !important;
+  border-radius: 50% !important;
+  cursor: pointer;
+  background: none;
+}
+.custom-color-input.is-selected { border-color: var(--navy) !important; }
+.custom-color-input::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+.custom-color-input::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+/* CONTRACT HISTORY */
+.contract-history-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.contract-history-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 8px 12px; font-size: 13.5px; font-weight: 400;
+}
+.contract-history-row .del-btn { border: none; background: none; color: #b6b6b6; font-size: 18px; cursor: pointer; padding: 0 2px; }
+
+/* SEGMENTED CONTROL */
+.segmented { display: flex; gap: 6px; margin-top: 6px; }
+.segment {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--navy);
+  text-align: center;
+}
+.segment.is-selected { background: var(--navy); color: var(--white); border-color: var(--navy); }
+
+.modal-actions-split { display: flex; justify-content: space-between; align-items: center; }
+.modal-actions-right { display: flex; gap: 10px; }
+.btn-danger-text { color: var(--danger) !important; }
 
 /* DETAIL SHEET */
 .detail-stats { display: flex; justify-content: space-around; text-align: center; margin: 6px 0 18px; }

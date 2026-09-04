@@ -1,4 +1,4 @@
-var CACHE_NAME = "uv4p-holidays-v1";
+var CACHE_NAME = "uv4p-holidays-v2";
 var CORE_ASSETS = [
   "./",
   "./index.html",
