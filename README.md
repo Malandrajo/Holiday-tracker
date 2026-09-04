@@ -9,11 +9,12 @@ It's a set of static files — no server, no account, no monthly cost. Each phon
 - `index.html`, `style.css`, `app.js` — the app itself
 - `manifest.json`, `service-worker.js` — makes it installable and usable offline
 - `icons/` — app icon in the sizes iOS and Android need
+- `vendor/` — the two small libraries used for PDF and image export (no internet needed, no external accounts)
 
 ## Put it on GitHub Pages
 
 1. Create a new repository on your `Malandrajo` GitHub account — e.g. `Uxbridge-Holidays`.
-2. Upload every file in this folder to the repository, keeping the `icons` folder as a folder (don't flatten it).
+2. Upload every file in this folder to the repository, keeping the `icons` and `vendor` folders as folders (don't flatten them).
 3. Go to the repo's **Settings → Pages**.
 4. Under "Build and deployment", set **Source** to "Deploy from a branch", branch `main`, folder `/ (root)`. Save.
 5. After a minute or two your app is live at:
@@ -36,6 +37,7 @@ There's no shared server, so:
 - From then on, whenever someone logs time off, export again and pass the file along the same way to keep everyone's copy matching — exactly like the export/import you already use in your rota tools.
 - **Export payroll CSV** gives a per-person hours summary for the selected year, ready for payroll.
 - **Print** opens a clean printable summary — handy for a notice board or a payroll file.
+- **Export PDF** and **Export image (PNG)** save the same summary (per-person totals plus hours taken by month) directly as a file, without going through a print dialog — handy for emailing to head office or dropping into a report.
 
 ## How the numbers are worked out
 
@@ -46,6 +48,7 @@ There's no shared server, so:
 - You can add a manual **carry-over** figure per person per year if they're bringing unused hours forward.
 - Each person gets a colour — pick one of the presets or tap the custom swatch for any colour you like.
 - **Delete** permanently removes a person and their history; **Archive** just hides them from the dashboard while keeping their record.
+- The **Log** tab has a collapsible **"Hours taken by month"** table (tap to expand) showing every team member's hours booked in each month of the selected year — the same table is included automatically in Print, PDF and image exports.
 
 ## Starting data
 

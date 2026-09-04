@@ -380,8 +380,63 @@
     sel.value = current || "";
   }
 
+  var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  // Attributes each entry's hours to the month of its start date.
+  function getMonthlyBreakdown(year) {
+    var active = state.members.filter(function (m) { return !m.archived; });
+    var data = {};
+    active.forEach(function (m) { data[m.id] = new Array(12).fill(0); });
+    var monthTotals = new Array(12).fill(0);
+    var grandTotal = 0;
+
+    state.entries.forEach(function (e) {
+      var d = parseISO(e.start);
+      if (d.getFullYear() !== year) return;
+      if (!data[e.memberId]) return; // archived/deleted member
+      var mi = d.getMonth();
+      data[e.memberId][mi] += e.hours;
+      monthTotals[mi] += e.hours;
+      grandTotal += e.hours;
+    });
+
+    return { members: active, data: data, monthTotals: monthTotals, grandTotal: grandTotal };
+  }
+
+  function buildMonthlyTableHtml(year) {
+    var b = getMonthlyBreakdown(year);
+    if (!b.members.length) return '<p class="hint" style="padding:12px;">No team members yet.</p>';
+    var html = '<table class="monthly-table"><thead><tr><th>Month</th>';
+    b.members.forEach(function (m) { html += "<th>" + escapeHtml(m.name) + "</th>"; });
+    html += "<th>Total</th></tr></thead><tbody>";
+    MONTH_NAMES.forEach(function (name, mi) {
+      html += "<tr><td>" + name + "</td>";
+      b.members.forEach(function (m) { html += "<td>" + (b.data[m.id][mi] ? fmtH(b.data[m.id][mi]) : "–") + "</td>"; });
+      html += "<td>" + (b.monthTotals[mi] ? fmtH(b.monthTotals[mi]) : "–") + "</td></tr>";
+    });
+    html += '</tbody><tfoot><tr><td>Total</td>';
+    b.members.forEach(function (m) {
+      var sum = b.data[m.id].reduce(function (a, x) { return a + x; }, 0);
+      html += "<td>" + fmtH(sum) + "</td>";
+    });
+    html += "<td>" + fmtH(b.grandTotal) + "</td></tr></tfoot></table>";
+    return html;
+  }
+
+  function renderMonthlyBreakdown() {
+    $("#monthlyBreakdownWrap").innerHTML = buildMonthlyTableHtml(ui.currentYear);
+  }
+
+  $("#toggleMonthlyBtn").addEventListener("click", function () {
+    var wrap = $("#monthlyBreakdownWrap");
+    var collapsed = wrap.classList.toggle("hidden");
+    $("#monthlyToggleArrow").textContent = collapsed ? "▾" : "▴";
+    if (!collapsed) renderMonthlyBreakdown();
+  });
+
   function renderLog() {
     renderLogFilterOptions();
+    if (!$("#monthlyBreakdownWrap").classList.contains("hidden")) renderMonthlyBreakdown();
     var filterId = $("#logFilterMember").value;
     var wrap = $("#entryList");
     wrap.innerHTML = "";
@@ -846,23 +901,99 @@
     }
   });
 
-  $("#printBtn").addEventListener("click", function () {
-    var win = window.open("", "_blank");
+  function buildSummaryHtml(year) {
     var active = state.members.filter(function (m) { return !m.archived; });
     var rowsHtml = active.map(function (m) {
-      var s = getMemberYearStats(m, ui.currentYear);
+      var s = getMemberYearStats(m, year);
       return "<tr><td>" + escapeHtml(m.name) + "</td><td>" + latestContractHours(m) + "</td><td>" + m.allowanceWeeks +
         "</td><td>" + fmtH(s.allowanceHours) + "</td><td>" + fmtH(s.takenHours) +
         "</td><td>" + fmtH(s.remainingHours) + "</td></tr>";
     }).join("");
+    return "<h1 style='font-family:Arial,sans-serif;color:#1B3A4B;margin-bottom:2px;'>Uxbridge Vets4Pets</h1>" +
+      "<p style='font-family:Arial,sans-serif;color:#1B3A4B;margin-top:0;'>Holiday summary — " + year + "</p>" +
+      "<table class='summary-table'><thead><tr><th>Name</th><th>Hrs/week</th><th>Weeks</th><th>Allowance</th><th>Taken</th><th>Remaining</th></tr></thead><tbody>" +
+      rowsHtml + "</tbody></table>" +
+      "<h2 style='font-family:Arial,sans-serif;color:#1B3A4B;margin-top:26px;'>Hours taken by month</h2>" +
+      buildMonthlyTableHtml(year);
+  }
+
+  var SUMMARY_STYLE = "body{font-family:Arial,sans-serif;padding:24px;color:#1B3A4B;background:#fff;} " +
+    "table{width:100%;border-collapse:collapse;margin-top:14px;} th,td{border:1px solid #ddd;padding:7px 9px;text-align:left;font-size:12.5px;} th{background:#FFF3E4;}";
+
+  $("#printBtn").addEventListener("click", function () {
+    var win = window.open("", "_blank");
     var html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Uxbridge Vets4Pets — Holidays " + ui.currentYear + "</title>" +
-      "<style>body{font-family:Arial,sans-serif;padding:24px;color:#1B3A4B} h1{margin-bottom:2px} table{width:100%;border-collapse:collapse;margin-top:18px} th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px} th{background:#FFF3E4}</style>" +
-      "</head><body><h1>Uxbridge Vets4Pets</h1><p>Holiday summary — " + ui.currentYear + "</p>" +
-      "<table><thead><tr><th>Name</th><th>Hrs/week</th><th>Weeks</th><th>Allowance</th><th>Taken</th><th>Remaining</th></tr></thead><tbody>" +
-      rowsHtml + "</tbody></table></body></html>";
+      "<style>" + SUMMARY_STYLE + "</style>" +
+      "</head><body>" + buildSummaryHtml(ui.currentYear) + "</body></html>";
     win.document.write(html);
     win.document.close();
     setTimeout(function () { win.print(); }, 300);
+  });
+
+  $("#exportPdfBtn").addEventListener("click", function () {
+    if (!window.jspdf) { toast("PDF library didn't load — check your connection and try again"); return; }
+    var container = document.createElement("div");
+    container.style.cssText = "position:fixed;left:-9999px;top:0;width:760px;background:#fff;";
+    container.innerHTML = "<div style='" + SUMMARY_STYLE.replace(/body\{[^}]*\}/, "") + "'>" + buildSummaryHtml(ui.currentYear) + "</div>";
+    document.body.appendChild(container);
+    html2canvas(container, { scale: 2, backgroundColor: "#ffffff" }).then(function (canvas) {
+      document.body.removeChild(container);
+      var imgData = canvas.toDataURL("image/png");
+      var pdf = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      var pageWidth = pdf.internal.pageSize.getWidth();
+      var imgWidth = pageWidth - 40;
+      var imgHeight = (canvas.height / canvas.width) * imgWidth;
+      var y = 20;
+      var remainingHeight = imgHeight;
+      var pageUsableHeight = pdf.internal.pageSize.getHeight() - 40;
+      if (imgHeight <= pageUsableHeight) {
+        pdf.addImage(imgData, "PNG", 20, y, imgWidth, imgHeight);
+      } else {
+        // Split across multiple pages
+        var sourceY = 0;
+        var scale = canvas.width / imgWidth;
+        while (remainingHeight > 0) {
+          var sliceHeightPx = Math.min(pageUsableHeight, remainingHeight) * scale;
+          var pageCanvas = document.createElement("canvas");
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+          var ctx = pageCanvas.getContext("2d");
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+          var sliceImg = pageCanvas.toDataURL("image/png");
+          var sliceHeightPt = sliceHeightPx / scale;
+          if (sourceY > 0) pdf.addPage();
+          pdf.addImage(sliceImg, "PNG", 20, 20, imgWidth, sliceHeightPt);
+          sourceY += sliceHeightPx;
+          remainingHeight -= sliceHeightPt;
+        }
+      }
+      pdf.save("uv4p-holidays-" + ui.currentYear + ".pdf");
+      toast("PDF downloaded");
+    }).catch(function () {
+      document.body.removeChild(container);
+      toast("Couldn't generate the PDF — try Print instead");
+    });
+  });
+
+  $("#exportImageBtn").addEventListener("click", function () {
+    if (!window.html2canvas) { toast("Image library didn't load — check your connection and try again"); return; }
+    var container = document.createElement("div");
+    container.style.cssText = "position:fixed;left:-9999px;top:0;width:760px;background:#fff;";
+    container.innerHTML = "<div style='" + SUMMARY_STYLE.replace(/body\{[^}]*\}/, "") + "'>" + buildSummaryHtml(ui.currentYear) + "</div>";
+    document.body.appendChild(container);
+    html2canvas(container, { scale: 2, backgroundColor: "#ffffff" }).then(function (canvas) {
+      document.body.removeChild(container);
+      var link = document.createElement("a");
+      link.download = "uv4p-holidays-" + ui.currentYear + ".png";
+      link.href = canvas.toDataURL("image/png");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast("Image downloaded");
+    }).catch(function () {
+      document.body.removeChild(container);
+      toast("Couldn't generate the image — try Print instead");
+    });
   });
 
   /* ---------------------------------------------------------

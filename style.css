@@ -189,6 +189,32 @@ main#views { flex: 1; padding: 18px 16px 8px; }
   background: var(--white);
   font-size: 14px;
 }
+
+/* MONTHLY BREAKDOWN */
+.monthly-breakdown { margin-bottom: 14px; }
+.monthly-toggle {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.monthly-table-wrap { overflow-x: auto; margin-top: 8px; border-radius: var(--radius-md); box-shadow: var(--shadow); background: var(--white); }
+.monthly-table { border-collapse: collapse; width: 100%; font-size: 12.5px; white-space: nowrap; }
+.monthly-table th, .monthly-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+.monthly-table th:first-child, .monthly-table td:first-child { text-align: left; position: sticky; left: 0; background: var(--white); }
+.monthly-table thead th { background: #FFF3E4; font-weight: 700; color: var(--navy); }
+.monthly-table tfoot td { font-weight: 700; color: var(--navy); background: #FFF8F0; }
 .entry-list { display: flex; flex-direction: column; gap: 8px; }
 .entry-row {
   background: var(--white);

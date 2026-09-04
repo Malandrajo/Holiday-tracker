@@ -74,6 +74,12 @@
       <div class="filter-row">
         <select id="logFilterMember"><option value="">Everyone</option></select>
       </div>
+
+      <div class="monthly-breakdown">
+        <button type="button" class="monthly-toggle" id="toggleMonthlyBtn">Hours taken by month <span id="monthlyToggleArrow">▾</span></button>
+        <div id="monthlyBreakdownWrap" class="monthly-table-wrap hidden"></div>
+      </div>
+
       <div id="entryList" class="entry-list"></div>
       <div id="entryListEmpty" class="empty-state hidden">
         <p>No time off logged for this year yet.</p>
@@ -127,10 +133,12 @@
       </div>
 
       <div class="data-card">
-        <h2>Print</h2>
-        <p>A clean printable summary for the selected year — handy for payroll or notice boards.</p>
+        <h2>Print &amp; share</h2>
+        <p>A clean summary for the selected year — allowance, taken and remaining per person, plus hours taken by month. Handy for payroll, a notice board, or sending to head office.</p>
         <div class="btn-row">
           <button class="btn btn-secondary" id="printBtn">Open print view</button>
+          <button class="btn btn-secondary" id="exportPdfBtn">Export PDF</button>
+          <button class="btn btn-secondary" id="exportImageBtn">Export image (PNG)</button>
         </div>
       </div>
 
@@ -271,6 +279,8 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
