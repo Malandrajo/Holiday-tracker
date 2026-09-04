@@ -46,7 +46,7 @@
       name: name,
       color: color,
       allowanceWeeks: allowanceWeeks || 5.6,
-      includeBankHolidays: false,
+      includeBankHolidays: true,
       contractHistory: [{ id: uid(), date: (new Date().getFullYear()) + "-01-01", hours: hours || 40 }],
       leaveDate: "",
       archived: false,
@@ -597,7 +597,7 @@
     pendingContractHistory = m ? JSON.parse(JSON.stringify(m.contractHistory || [])) : [];
     renderContractHistoryList();
 
-    setBhSegment(m ? m.includeBankHolidays : false);
+    setBhSegment(m ? m.includeBankHolidays : true);
     pendingColor = m ? m.color : PALETTE[state.members.filter(function (x) { return !x.archived; }).length % PALETTE.length];
     renderColorPicker(pendingColor);
     syncWeeksChips();
@@ -771,10 +771,32 @@
       '<button class="btn btn-primary btn-sm" id="detailLogBtn">+ Log time off</button>' +
       '<button class="btn btn-secondary btn-sm" id="detailEditBtn">Edit details</button>' +
       "</div>" +
+      (m.includeBankHolidays ? '<div class="detail-bh"><h3>Bank holidays this year</h3><p class="hint" style="margin:0 0 8px;">Bank holidays count against the allowance by default. Mark one as "worked" if they actually worked it instead.</p><div id="detailBhList"></div></div>' : "") +
       '<div class="detail-history"><h3>' + ui.currentYear + ' history</h3><div id="detailHistoryList"></div></div>';
 
     $("#detailLogBtn").addEventListener("click", function () { closeModal($("#detailModal")); openEntryModal(m.id); });
     $("#detailEditBtn").addEventListener("click", function () { closeModal($("#detailModal")); openMemberModal(m.id); });
+
+    if (m.includeBankHolidays) {
+      var bhWrap = $("#detailBhList");
+      stats.bhList.forEach(function (bh) {
+        var row = el("div", "detail-bh-row");
+        row.innerHTML = "<span>" + escapeHtml(bh.name) + " <span class=\"hint\">" + fmtHuman(dateStr(bh.date)) + "</span></span>";
+        var toggle = el("button", "bh-toggle" + (bh.counted ? "" : " is-worked"), bh.counted ? "Deducted" : "Worked");
+        toggle.type = "button";
+        toggle.addEventListener("click", function () {
+          if (!m.bhExceptions) m.bhExceptions = {};
+          if (!m.bhExceptions[ui.currentYear]) m.bhExceptions[ui.currentYear] = [];
+          var list = m.bhExceptions[ui.currentYear];
+          var idx = list.indexOf(bh.key);
+          if (idx === -1) list.push(bh.key); else list.splice(idx, 1);
+          saveState();
+          openDetail(m.id);
+        });
+        row.appendChild(toggle);
+        bhWrap.appendChild(row);
+      });
+    }
 
     var histWrap = $("#detailHistoryList");
     var entries = state.entries.filter(function (e) { return e.memberId === m.id && parseISO(e.start).getFullYear() === ui.currentYear; })
