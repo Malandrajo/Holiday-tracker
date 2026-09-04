@@ -46,7 +46,7 @@
       name: name,
       color: color,
       allowanceWeeks: allowanceWeeks || 5.6,
-      includeBankHolidays: true,
+      includeBankHolidays: false,
       contractHistory: [{ id: uid(), date: (new Date().getFullYear()) + "-01-01", hours: hours || 40 }],
       leaveDate: "",
       archived: false,
@@ -597,7 +597,7 @@
     pendingContractHistory = m ? JSON.parse(JSON.stringify(m.contractHistory || [])) : [];
     renderContractHistoryList();
 
-    setBhSegment(m ? m.includeBankHolidays : true);
+    setBhSegment(m ? m.includeBankHolidays : false);
     pendingColor = m ? m.color : PALETTE[state.members.filter(function (x) { return !x.archived; }).length % PALETTE.length];
     renderColorPicker(pendingColor);
     syncWeeksChips();
