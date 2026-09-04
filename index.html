@@ -84,7 +84,7 @@
     <section id="view-bankholidays" class="view">
       <div class="view-head">
         <h1>Bank holidays</h1>
-        <p class="view-sub">England &amp; Wales, calculated automatically for every year.</p>
+        <p class="view-sub">England &amp; Wales, calculated automatically for every year — for reference only. They're normal working days by policy, so hours only come off someone's allowance if they actually book one off (via Log time off, same as any other day).</p>
       </div>
       <div id="bankHolidayTable" class="bh-table"></div>
       <div class="bh-custom">
@@ -205,14 +205,6 @@
           <button type="button" class="chip" data-weeks="6.6">6.6</button>
         </div>
         <input type="number" id="memberWeeks" min="0" max="20" step="0.1" required placeholder="Custom, e.g. 5.6">
-      </label>
-
-      <label>Bank holidays
-        <div class="segmented" id="bhSegmented">
-          <button type="button" class="segment" data-bh="ontop">On top of allowance</button>
-          <button type="button" class="segment" data-bh="included">Included in allowance</button>
-        </div>
-        <p class="hint" style="margin:6px 0 0;">"Included" deducts a standard day's hours from their allowance for each bank holiday. "On top" leaves their allowance untouched.</p>
       </label>
 
       <label>Leave date <span class="hint">(optional)</span>

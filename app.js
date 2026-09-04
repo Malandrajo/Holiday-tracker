@@ -35,8 +35,7 @@
         seedMember("Maria", "#E5679A", 5.6, 40)
       ],
       entries: [],
-      customBankHolidays: {}, // { "2026": [{id,name,date}] }
-      bhExceptions: {} // reserved for future per-date global exceptions
+      customBankHolidays: {} // { "2026": [{id,name,date}] }
     };
   }
 
@@ -46,12 +45,10 @@
       name: name,
       color: color,
       allowanceWeeks: allowanceWeeks || 5.6,
-      includeBankHolidays: true,
       contractHistory: [{ id: uid(), date: (new Date().getFullYear()) + "-01-01", hours: hours || 40 }],
       leaveDate: "",
       archived: false,
-      carryOver: {},
-      bhExceptions: {}
+      carryOver: {}
     };
   }
 
@@ -62,8 +59,6 @@
       m.contractHistory = [{ id: uid(), date: date, hours: hours }];
     }
     if (!m.carryOver) m.carryOver = {};
-    if (!m.bhExceptions) m.bhExceptions = {};
-    if (typeof m.includeBankHolidays !== "boolean") m.includeBankHolidays = true;
     if (typeof m.archived !== "boolean") m.archived = false;
     return m;
   }
@@ -241,21 +236,8 @@
     var carryOver = (member.carryOver && member.carryOver[year]) || 0;
     var allowanceHours = (member.allowanceWeeks / 365) * sumHours + carryOver;
 
-    var bankHolidayHours = 0;
-    var bhList = [];
-    if (member.includeBankHolidays) {
-      var all = getAllBankHolidays(year);
-      var exceptions = (member.bhExceptions && member.bhExceptions[year]) || [];
-      all.forEach(function (bh) {
-        var key = dateStr(bh.date);
-        var excluded = exceptions.indexOf(key) !== -1;
-        var dayHours = hoursOnDate(member, bh.date);
-        var counted = !excluded && dayHours > 0;
-        if (counted) bankHolidayHours += dayHours / 5;
-        bhList.push({ name: bh.name, date: bh.date, counted: counted, key: key });
-      });
-    }
-
+    // Bank holidays are normal working days by policy — nothing is deducted automatically.
+    // If someone books a bank holiday off, that's just a normal logged entry (counted below).
     var takenHours = 0;
     state.entries.forEach(function (e) {
       if (e.memberId !== member.id) return;
@@ -264,14 +246,12 @@
       takenHours += e.hours;
     });
 
-    var remainingHours = allowanceHours - bankHolidayHours - takenHours;
+    var remainingHours = allowanceHours - takenHours;
 
     return {
       allowanceHours: allowanceHours,
-      bankHolidayHours: bankHolidayHours,
       takenHours: takenHours,
       remainingHours: remainingHours,
-      bhList: bhList,
       carryOver: carryOver
     };
   }
@@ -339,7 +319,7 @@
     active.forEach(function (m) {
       var stats = getMemberYearStats(m, ui.currentYear);
       totalRemaining += stats.remainingHours;
-      var pct = stats.allowanceHours > 0 ? Math.max(0, Math.min(100, ((stats.allowanceHours - stats.bankHolidayHours - stats.takenHours) / stats.allowanceHours) * 100)) : 0;
+      var pct = stats.allowanceHours > 0 ? Math.max(0, Math.min(100, ((stats.allowanceHours - stats.takenHours) / stats.allowanceHours) * 100)) : 0;
 
       var card = el("div", "member-card");
       card.style.setProperty("--accent", m.color);
@@ -486,7 +466,6 @@
   --------------------------------------------------------- */
   var pendingContractHistory = [];
   var pendingColor = PALETTE[0];
-  var pendingBhIncluded = true;
 
   function renderColorPicker(selected) {
     var wrap = $("#colorPicker");
@@ -566,16 +545,6 @@
     renderContractHistoryList();
   });
 
-  function setBhSegment(included) {
-    pendingBhIncluded = included;
-    $all(".segment").forEach(function (s) {
-      s.classList.toggle("is-selected", (s.dataset.bh === "included") === included);
-    });
-  }
-  $all(".segment").forEach(function (seg) {
-    seg.addEventListener("click", function () { setBhSegment(seg.dataset.bh === "included"); });
-  });
-
   function openMemberModal(memberId) {
     ui.editingMemberId = memberId || null;
     var m = memberId ? state.members.find(function (x) { return x.id === memberId; }) : null;
@@ -597,7 +566,6 @@
     pendingContractHistory = m ? JSON.parse(JSON.stringify(m.contractHistory || [])) : [];
     renderContractHistoryList();
 
-    setBhSegment(m ? m.includeBankHolidays : true);
     pendingColor = m ? m.color : PALETTE[state.members.filter(function (x) { return !x.archived; }).length % PALETTE.length];
     renderColorPicker(pendingColor);
     syncWeeksChips();
@@ -638,7 +606,6 @@
       color: pendingColor,
       contractHistory: JSON.parse(JSON.stringify(pendingContractHistory)),
       allowanceWeeks: parseFloat($("#memberWeeks").value),
-      includeBankHolidays: pendingBhIncluded,
       leaveDate: $("#memberLeaveDate").value || ""
     };
 
@@ -763,40 +730,18 @@
     body.innerHTML =
       '<div class="detail-stats">' +
       '<div><span class="num">' + fmtH(stats.allowanceHours) + '</span><span class="lbl">Allowance</span></div>' +
-      '<div><span class="num">' + fmtH(stats.bankHolidayHours) + '</span><span class="lbl">Bank hols</span></div>' +
       '<div><span class="num">' + fmtH(stats.takenHours) + '</span><span class="lbl">Taken</span></div>' +
       '<div><span class="num">' + fmtH(Math.max(0, stats.remainingHours)) + '</span><span class="lbl">Remaining</span></div>' +
       "</div>" +
+      '<p class="detail-formula">' + fmtH(stats.allowanceHours) + ' allowance for the year − ' + fmtH(stats.takenHours) + ' taken = <strong>' + fmtH(Math.max(0, stats.remainingHours)) + ' remaining</strong>. The allowance stays fixed all year — it\'s "Remaining" that goes down as time off is logged. Bank holidays are normal working days and only reduce it if someone actually books one off.</p>' +
       '<div class="detail-actions">' +
       '<button class="btn btn-primary btn-sm" id="detailLogBtn">+ Log time off</button>' +
       '<button class="btn btn-secondary btn-sm" id="detailEditBtn">Edit details</button>' +
       "</div>" +
-      (m.includeBankHolidays ? '<div class="detail-bh"><h3>Bank holidays this year</h3><p class="hint" style="margin:0 0 8px;">Bank holidays count against the allowance by default. Mark one as "worked" if they actually worked it instead.</p><div id="detailBhList"></div></div>' : "") +
       '<div class="detail-history"><h3>' + ui.currentYear + ' history</h3><div id="detailHistoryList"></div></div>';
 
     $("#detailLogBtn").addEventListener("click", function () { closeModal($("#detailModal")); openEntryModal(m.id); });
     $("#detailEditBtn").addEventListener("click", function () { closeModal($("#detailModal")); openMemberModal(m.id); });
-
-    if (m.includeBankHolidays) {
-      var bhWrap = $("#detailBhList");
-      stats.bhList.forEach(function (bh) {
-        var row = el("div", "detail-bh-row");
-        row.innerHTML = "<span>" + escapeHtml(bh.name) + " <span class=\"hint\">" + fmtHuman(dateStr(bh.date)) + "</span></span>";
-        var toggle = el("button", "bh-toggle" + (bh.counted ? "" : " is-worked"), bh.counted ? "Deducted" : "Worked");
-        toggle.type = "button";
-        toggle.addEventListener("click", function () {
-          if (!m.bhExceptions) m.bhExceptions = {};
-          if (!m.bhExceptions[ui.currentYear]) m.bhExceptions[ui.currentYear] = [];
-          var list = m.bhExceptions[ui.currentYear];
-          var idx = list.indexOf(bh.key);
-          if (idx === -1) list.push(bh.key); else list.splice(idx, 1);
-          saveState();
-          openDetail(m.id);
-        });
-        row.appendChild(toggle);
-        bhWrap.appendChild(row);
-      });
-    }
 
     var histWrap = $("#detailHistoryList");
     var entries = state.entries.filter(function (e) { return e.memberId === m.id && parseISO(e.start).getFullYear() === ui.currentYear; })
@@ -857,10 +802,10 @@
   });
 
   $("#exportCsvBtn").addEventListener("click", function () {
-    var rows = [["Name", "Contracted hrs/wk", "Allowance (weeks)", "Allowance (hrs)", "Bank holiday hrs", "Taken hrs", "Remaining hrs", "Year"]];
+    var rows = [["Name", "Contracted hrs/wk", "Allowance (weeks)", "Allowance (hrs)", "Taken hrs", "Remaining hrs", "Year"]];
     state.members.filter(function (m) { return !m.archived; }).forEach(function (m) {
       var s = getMemberYearStats(m, ui.currentYear);
-      rows.push([m.name, latestContractHours(m), m.allowanceWeeks, s.allowanceHours.toFixed(1), s.bankHolidayHours.toFixed(1), s.takenHours.toFixed(1), s.remainingHours.toFixed(1), ui.currentYear]);
+      rows.push([m.name, latestContractHours(m), m.allowanceWeeks, s.allowanceHours.toFixed(1), s.takenHours.toFixed(1), s.remainingHours.toFixed(1), ui.currentYear]);
     });
     var csv = rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(","); }).join("\n");
     downloadFile("uv4p-holidays-" + ui.currentYear + ".csv", csv, "text/csv");
@@ -907,13 +852,13 @@
     var rowsHtml = active.map(function (m) {
       var s = getMemberYearStats(m, ui.currentYear);
       return "<tr><td>" + escapeHtml(m.name) + "</td><td>" + latestContractHours(m) + "</td><td>" + m.allowanceWeeks +
-        "</td><td>" + fmtH(s.allowanceHours) + "</td><td>" + fmtH(s.bankHolidayHours) + "</td><td>" + fmtH(s.takenHours) +
+        "</td><td>" + fmtH(s.allowanceHours) + "</td><td>" + fmtH(s.takenHours) +
         "</td><td>" + fmtH(s.remainingHours) + "</td></tr>";
     }).join("");
     var html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Uxbridge Vets4Pets — Holidays " + ui.currentYear + "</title>" +
       "<style>body{font-family:Arial,sans-serif;padding:24px;color:#1B3A4B} h1{margin-bottom:2px} table{width:100%;border-collapse:collapse;margin-top:18px} th,td{border:1px solid #ddd;padding:8px 10px;text-align:left;font-size:13px} th{background:#FFF3E4}</style>" +
       "</head><body><h1>Uxbridge Vets4Pets</h1><p>Holiday summary — " + ui.currentYear + "</p>" +
-      "<table><thead><tr><th>Name</th><th>Hrs/week</th><th>Weeks</th><th>Allowance</th><th>Bank hols</th><th>Taken</th><th>Remaining</th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Name</th><th>Hrs/week</th><th>Weeks</th><th>Allowance</th><th>Taken</th><th>Remaining</th></tr></thead><tbody>" +
       rowsHtml + "</tbody></table></body></html>";
     win.document.write(html);
     win.document.close();
