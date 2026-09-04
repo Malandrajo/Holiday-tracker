@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Uxbridge Vets4Pets — Holiday Tracker</title>
+<meta name="description" content="Holiday allowance tracker for the Uxbridge Vets4Pets team.">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF6B5B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="UV4P Holidays">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header class="app-header">
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="" class="brand-mark">
+      <div class="brand-text">
+        <span class="practice-name">Uxbridge Vets4Pets</span>
+        <span class="tagline">Holiday Tracker</span>
+      </div>
+    </div>
+    <div class="year-switch" role="group" aria-label="Select holiday year">
+      <button id="yearPrev" aria-label="Previous year">‹</button>
+      <span id="yearLabel">2026</span>
+      <button id="yearNext" aria-label="Next year">›</button>
+    </div>
+  </header>
+
+  <main id="views">
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view is-active">
+      <div class="view-head">
+        <h1>Team overview</h1>
+        <p class="view-sub" id="dashSummary"></p>
+      </div>
+      <div id="dashboardCards" class="card-grid"></div>
+      <div id="dashboardEmpty" class="empty-state hidden">
+        <p>No one on the team yet.</p>
+        <button class="btn btn-primary" id="dashAddMemberBtn">Add your first team member</button>
+      </div>
+    </section>
+
+    <!-- TEAM -->
+    <section id="view-team" class="view">
+      <div class="view-head">
+        <h1>Team</h1>
+        <button class="btn btn-primary btn-sm" id="addMemberBtn">+ Add member</button>
+      </div>
+      <div id="teamList" class="team-list"></div>
+    </section>
+
+    <!-- LOG -->
+    <section id="view-log" class="view">
+      <div class="view-head">
+        <h1>Time off log</h1>
+        <button class="btn btn-primary btn-sm" id="addEntryBtn">+ Log time off</button>
+      </div>
+      <div class="filter-row">
+        <select id="logFilterMember"><option value="">Everyone</option></select>
+      </div>
+      <div id="entryList" class="entry-list"></div>
+      <div id="entryListEmpty" class="empty-state hidden">
+        <p>No time off logged for this year yet.</p>
+      </div>
+    </section>
+
+    <!-- BANK HOLIDAYS -->
+    <section id="view-bankholidays" class="view">
+      <div class="view-head">
+        <h1>Bank holidays</h1>
+        <p class="view-sub">England &amp; Wales, calculated automatically for every year.</p>
+      </div>
+      <div id="bankHolidayTable" class="bh-table"></div>
+      <div class="bh-custom">
+        <h2>Add a one-off holiday</h2>
+        <p class="view-sub">For extra dates like a Coronation or Jubilee bank holiday.</p>
+        <form id="customBhForm" class="inline-form">
+          <input type="text" id="customBhName" placeholder="Name (e.g. Coronation)" required>
+          <input type="date" id="customBhDate" required>
+          <button type="submit" class="btn btn-secondary btn-sm">Add</button>
+        </form>
+        <div id="customBhList" class="custom-bh-list"></div>
+      </div>
+    </section>
+
+    <!-- DATA -->
+    <section id="view-data" class="view">
+      <div class="view-head">
+        <h1>Backup &amp; sharing</h1>
+        <p class="view-sub">Everyone keeps their own copy on their phone — use these to keep them in sync.</p>
+      </div>
+
+      <div class="data-card">
+        <h2>Export</h2>
+        <p>Save a backup file, or share it with a teammate so their app matches yours.</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="exportJsonBtn">Export backup (.json)</button>
+          <button class="btn btn-secondary" id="exportCsvBtn">Export payroll CSV</button>
+        </div>
+      </div>
+
+      <div class="data-card">
+        <h2>Import</h2>
+        <p>Load a backup file. This replaces the data currently on this phone.</p>
+        <div class="btn-row">
+          <label class="btn btn-secondary file-btn">
+            Choose backup file
+            <input type="file" id="importFile" accept="application/json">
+          </label>
+        </div>
+      </div>
+
+      <div class="data-card">
+        <h2>Print</h2>
+        <p>A clean printable summary for the selected year — handy for payroll or notice boards.</p>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="printBtn">Open print view</button>
+        </div>
+      </div>
+
+      <div class="data-card danger-card">
+        <h2>Reset</h2>
+        <p>Delete everything stored on this phone. This can't be undone.</p>
+        <div class="btn-row">
+          <button class="btn btn-danger" id="resetBtn">Reset all data</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-btn is-active" data-view="dashboard">
+      <svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="nav-btn" data-view="team">
+      <svg viewBox="0 0 24 24"><ellipse cx="12" cy="15" rx="5" ry="4"/><ellipse cx="5.5" cy="8.5" rx="2" ry="2.6"/><ellipse cx="9.5" cy="5.5" rx="2.1" ry="2.8"/><ellipse cx="14.5" cy="5.5" rx="2.1" ry="2.8"/><ellipse cx="18.5" cy="8.5" rx="2" ry="2.6"/></svg>
+      <span>Team</span>
+    </button>
+    <button class="nav-btn" data-view="log">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" stroke="currentColor" stroke-width="2"/><path d="M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Log</span>
+    </button>
+    <button class="nav-btn" data-view="bankholidays">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/><line x1="19.1" y1="4.9" x2="17.4" y2="6.6"/><line x1="6.6" y1="17.4" x2="4.9" y2="19.1"/></g></svg>
+      <span>Bank hols</span>
+    </button>
+    <button class="nav-btn" data-view="data">
+      <svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Data</span>
+    </button>
+  </nav>
+</div>
+
+<!-- MEMBER MODAL -->
+<div class="modal hidden" id="memberModal">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h2 id="memberModalTitle">Add team member</h2>
+      <button class="modal-close" data-close>×</button>
+    </div>
+    <form id="memberForm">
+      <input type="hidden" id="memberId">
+      <label>Name
+        <input type="text" id="memberName" required placeholder="e.g. Claire">
+      </label>
+
+      <label>Colour
+        <div id="colorPicker" class="color-picker"></div>
+      </label>
+
+      <label>Contracted hours per week
+        <input type="number" id="memberHours" min="1" max="60" step="0.5" required placeholder="e.g. 37.5">
+      </label>
+
+      <label>Holiday allowance (weeks per year)
+        <div class="chip-row">
+          <button type="button" class="chip" data-weeks="5.6">5.6</button>
+          <button type="button" class="chip" data-weeks="6.6">6.6</button>
+        </div>
+        <input type="number" id="memberWeeks" min="0" max="20" step="0.1" required placeholder="e.g. 5.6">
+      </label>
+
+      <label class="toggle-row">
+        <span>Bank holidays count towards this allowance</span>
+        <input type="checkbox" id="memberIncludeBH">
+      </label>
+
+      <label>Start date <span class="hint">(optional — pro-rates their first year)</span>
+        <input type="date" id="memberJoinDate">
+      </label>
+
+      <label>Leave date <span class="hint">(optional)</span>
+        <input type="date" id="memberLeaveDate">
+      </label>
+
+      <label>Carry-over hours into <span id="carryYearLabel">this year</span> <span class="hint">(optional)</span>
+        <input type="number" id="memberCarryOver" step="0.5" placeholder="0">
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-text" id="archiveMemberBtn">Archive</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="modal hidden" id="entryModal">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h2>Log time off</h2>
+      <button class="modal-close" data-close>×</button>
+    </div>
+    <form id="entryForm">
+      <label>Team member
+        <select id="entryMember" required></select>
+      </label>
+      <div class="two-col">
+        <label>From
+          <input type="date" id="entryStart" required>
+        </label>
+        <label>To
+          <input type="date" id="entryEnd" required>
+        </label>
+      </div>
+      <label>Hours <span class="hint">(auto-suggested, edit if needed)</span>
+        <input type="number" id="entryHours" min="0" step="0.5" required>
+      </label>
+      <label>Note <span class="hint">(optional)</span>
+        <input type="text" id="entryNote" placeholder="e.g. family holiday">
+      </label>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MEMBER DETAIL SHEET -->
+<div class="modal hidden" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h2 id="detailName">Name</h2>
+      <button class="modal-close" data-close>×</button>
+    </div>
+    <div id="detailBody"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

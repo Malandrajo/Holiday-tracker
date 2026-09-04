@@ -1,0 +1,16 @@
+{
+  "name": "Uxbridge Vets4Pets \u2014 Holiday Tracker",
+  "short_name": "UV4P Holidays",
+  "description": "Track holiday allowance, bookings and bank holidays for the Uxbridge Vets4Pets team.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FFF8F0",
+  "theme_color": "#FF6B5B",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
